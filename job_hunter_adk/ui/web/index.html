@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Hunter ADK</title>
+    <!-- Sophisticated typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:ital,wght@0,300;0,700;1,300&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- API Key Overlay -->
+    <div id="apiKeyModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Welcome to Job Hunter</h2>
+            <p>Please enter your API key to continue.</p>
+            <input type="password" id="apiKeyInput" placeholder="X-API-Key" />
+            <button id="saveApiKeyBtn">Start Session</button>
+            <div id="apiError" class="error-msg"></div>
+        </div>
+    </div>
+
+    <header>
+        <div class="header-container">
+            <h1>💼 Job Hunter <span>ADK</span></h1>
+            <div class="session-info hidden" id="sessionInfo">
+                <span class="session-label">Session: <code id="sessionIdDisplay"></code></span>
+                <button id="copySessionBtn" title="Copy Session ID">📋</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Search Panel -->
+        <section id="searchPanel" class="panel">
+            <h2>Find your next role</h2>
+            <p class="subtitle">Upload your resume and set your preferences to let the AI orchestrator find, rank, and draft applications for the best matching jobs.</p>
+            
+            <form id="searchForm">
+                <div class="form-group drop-zone" id="dropZone">
+                    <p>Drag & drop your Resume (PDF/DOCX/TXT) here</p>
+                    <p class="small">or click to browse</p>
+                    <input type="file" id="resumeFile" accept=".pdf,.docx,.txt" required />
+                    <div id="fileName" class="file-name hidden"></div>
+                </div>
+
+                <div class="filters-grid">
+                    <div class="form-group">
+                        <label>Job Type</label>
+                        <div class="radio-group">
+                            <label><input type="radio" name="job_type" value="internship"> Internship</label>
+                            <label><input type="radio" name="job_type" value="permanent" checked> Permanent Job</label>
+                            <label><input type="radio" name="job_type" value="parttime"> Part-time Job</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Work Mode</label>
+                        <div class="radio-group">
+                            <label><input type="radio" name="work_mode" value="inoffice"> In-office</label>
+                            <label><input type="radio" name="work_mode" value="remote" checked> Remote</label>
+                            <label><input type="radio" name="work_mode" value="hybrid"> Hybrid</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Locations (comma separated)</label>
+                    <input type="text" id="locationsInput" value="Remote, Bangalore, New York" />
+                </div>
+
+                <div class="form-group toggle-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="paidOnly" checked>
+                        <span class="toggle-switch"></span>
+                        Paid only
+                    </label>
+                </div>
+
+                <button type="submit" id="startSearchBtn" class="primary-btn">Start Job Hunt</button>
+                <div id="searchError" class="error-msg"></div>
+            </form>
+        </section>
+
+        <!-- Loading State -->
+        <section id="loadingState" class="panel hidden">
+            <div class="spinner"></div>
+            <h2>Hunting for jobs...</h2>
+            <p>Our orchestrator is analyzing your resume and finding the best matches.</p>
+        </section>
+
+        <!-- Results & Chat View -->
+        <section id="resultsView" class="hidden">
+            <div class="layout-grid">
+                <!-- Ranked Jobs Column -->
+                <div class="jobs-column">
+                    <h2>Ranked Matches</h2>
+                    <div id="jobsList" class="jobs-list">
+                        <!-- Job cards injected here -->
+                    </div>
+                </div>
+                
+                <!-- Chat & Draft Column -->
+                <div class="chat-column">
+                    <h2>Assistant</h2>
+                    
+                    <!-- Application Draft Section -->
+                    <div id="draftSection" class="draft-card hidden">
+                        <h3>Draft Application</h3>
+                        <div class="draft-content">
+                            <div class="draft-field"><strong>To:</strong> <span id="draftTo"></span></div>
+                            <div class="draft-field"><strong>Subject:</strong> <span id="draftSubject"></span></div>
+                            <textarea id="draftBody" rows="10"></textarea>
+                        </div>
+                        <div class="draft-actions">
+                            <button id="discardDraftBtn" class="secondary-btn">Discard</button>
+                            <button id="approveDraftBtn" class="success-btn">Approve & Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Chat Interface -->
+                    <div class="chat-interface">
+                        <div id="chatHistory" class="chat-history">
+                            <div class="message assistant">
+                                <p>I've found some jobs for you! You can ask me to "prep me for an interview at X" or "draft an application for Y".</p>
+                            </div>
+                        </div>
+                        
+                        <form id="chatForm" class="chat-input-area">
+                            <input type="text" id="chatInput" placeholder="Type your message..." required />
+                            <button type="submit" id="chatSendBtn">Send</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Global Loading Overlay for Chat -->
+    <div id="globalLoading" class="global-loading hidden">
+        <div class="spinner small"></div>
+    </div>
+
+    <!-- Error Banner -->
+    <div id="errorBanner" class="error-banner hidden">
+        <span id="errorText">An error occurred.</span>
+        <button id="closeErrorBtn">&times;</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
