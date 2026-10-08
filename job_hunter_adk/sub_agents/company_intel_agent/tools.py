@@ -6,12 +6,7 @@ from services.search_router import search_web
 from services.scrapers import glassdoor_scraper
 from services.model_router import get_model
 
-try:
-    from google.adk.tools import FunctionTool
-except ImportError:
-    class FunctionTool:
-        def __init__(self, func):
-            self.func = func
+from google.adk.tools import FunctionTool
 
 logger = logging.getLogger(__name__)
 
@@ -66,15 +61,21 @@ def _summarize_sentiment_impl(reviews: list[ReviewSummary]) -> list[ReviewSummar
         return []
     
     model = get_model()
+    from services.security import SECURITY_PROMPT_HEADER, wrap_untrusted_data
+    
+    raw_reviews_data = [r.model_dump() for r in reviews]
+    wrapped_reviews = wrap_untrusted_data(json.dumps(raw_reviews_data), data_type="raw_reviews")
     prompt = f"""
     You are an expert sentiment analyst. Condense the following raw reviews into a handful of distinct, sentiment-labeled summaries.
     Return ONLY valid JSON as a list of ReviewSummary objects. Do not invent information.
+    
+    {SECURITY_PROMPT_HEADER}
     
     Schema:
     {ReviewSummary.model_json_schema()}
     
     Raw Reviews:
-    {[r.model_dump() for r in reviews]}
+    {wrapped_reviews}
     """
     
     try:

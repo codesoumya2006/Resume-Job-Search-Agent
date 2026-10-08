@@ -217,11 +217,29 @@ searchForm.addEventListener('submit', async (e) => {
     }
 });
 
-// Chat UI
+// URL Validation: Only allows http: and https: protocols.
+// Blocks dangerous schemes like javascript:, data:, vbscript:.
+function isValidHttpUrl(urlString) {
+    if (!urlString || typeof urlString !== 'string') return false;
+    try {
+        const parsed = new URL(urlString);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+// Chat UI: Safe rendering with text nodes to prevent XSS injection
 function addChatMessage(role, text) {
     const div = document.createElement('div');
     div.className = `message ${role}`;
-    div.innerHTML = `<p>${text.replace(/\n/g, '<br>')}</p>`;
+    const p = document.createElement('p');
+    const lines = String(text || '').split('\n');
+    lines.forEach((line, idx) => {
+        if (idx > 0) p.appendChild(document.createElement('br'));
+        p.appendChild(document.createTextNode(line));
+    });
+    div.appendChild(p);
     chatHistory.appendChild(div);
     chatHistory.scrollTop = chatHistory.scrollHeight;
 }
@@ -259,50 +277,116 @@ async function sendChatMessage(message, extraPayload = {}) {
     }
 }
 
-// Render Results & Intel
+// Render Results & Intel using safe DOM creation (no innerHTML with untrusted data)
 function renderState(chatRes) {
     if (!chatRes.state_snapshot) return;
     
     const { ranked_jobs, company_intel, email_draft } = chatRes.state_snapshot;
     
     if (ranked_jobs && ranked_jobs.length > 0) {
-        jobsList.innerHTML = '';
+        jobsList.textContent = '';
         ranked_jobs.forEach(rank => {
-            const job = rank.job;
-            const score = (rank.score * 100).toFixed(0);
+            const job = rank.job || {};
+            const score = ((rank.score || 0) * 100).toFixed(0);
             const intel = company_intel ? company_intel[job.company] : null;
-            
-            let intelHtml = '';
-            if (intel && intel.length > 0) {
-                intelHtml = `<div class="intel-section"><strong>Company Intel:</strong><br>`;
-                intel.forEach(review => {
-                    const badgeClass = review.sentiment === 'positive' ? 'intel-positive' : review.sentiment === 'negative' ? 'intel-negative' : 'intel-neutral';
-                    intelHtml += `<span class="intel-badge ${badgeClass}">${review.source}: ${review.summary}</span>`;
-                });
-                intelHtml += `</div>`;
-            }
             
             const card = document.createElement('div');
             card.className = 'job-card';
-            card.innerHTML = `
-                <div class="job-header">
-                    <div>
-                        <div class="job-title">${job.title}</div>
-                        <div class="job-company">${job.company}</div>
-                    </div>
-                    <div class="job-score">${score}% Match</div>
-                </div>
-                <div class="job-meta">
-                    <span>📍 ${job.location}</span>
-                    <span>🏢 ${job.work_mode}</span>
-                    <span>💼 ${job.job_type}</span>
-                    <span>🏷️ ${job.source}</span>
-                </div>
-                <div class="job-desc" id="desc-${job.id}">${job.description}</div>
-                <button class="expand-btn" onclick="document.getElementById('desc-${job.id}').classList.toggle('expanded')">Read more...</button>
-                <div style="margin-top:0.5rem"><a href="${job.url}" target="_blank" style="font-size:0.875rem; color:var(--primary);">View Posting ↗</a></div>
-                ${intelHtml}
-            `;
+            
+            // Header
+            const header = document.createElement('div');
+            header.className = 'job-header';
+            
+            const titleGroup = document.createElement('div');
+            const titleEl = document.createElement('div');
+            titleEl.className = 'job-title';
+            titleEl.textContent = job.title || 'Untitled Position';
+            
+            const compEl = document.createElement('div');
+            compEl.className = 'job-company';
+            compEl.textContent = job.company || 'Unknown Company';
+            
+            titleGroup.appendChild(titleEl);
+            titleGroup.appendChild(compEl);
+            
+            const scoreEl = document.createElement('div');
+            scoreEl.className = 'job-score';
+            scoreEl.textContent = `${score}% Match`;
+            
+            header.appendChild(titleGroup);
+            header.appendChild(scoreEl);
+            card.appendChild(header);
+            
+            // Meta items
+            const meta = document.createElement('div');
+            meta.className = 'job-meta';
+            const metaItems = [
+                { icon: '📍', text: job.location },
+                { icon: '🏢', text: job.work_mode },
+                { icon: '💼', text: job.job_type },
+                { icon: '🏷️', text: job.source }
+            ];
+            metaItems.forEach(item => {
+                if (item.text) {
+                    const span = document.createElement('span');
+                    span.textContent = `${item.icon} ${item.text}`;
+                    meta.appendChild(span);
+                }
+            });
+            card.appendChild(meta);
+            
+            // Description
+            const descEl = document.createElement('div');
+            descEl.className = 'job-desc';
+            descEl.textContent = job.description || '';
+            card.appendChild(descEl);
+            
+            // Expand toggle button (safe listener, no inline onclick)
+            const expandBtn = document.createElement('button');
+            expandBtn.className = 'expand-btn';
+            expandBtn.textContent = 'Read more...';
+            expandBtn.addEventListener('click', () => {
+                descEl.classList.toggle('expanded');
+                expandBtn.textContent = descEl.classList.contains('expanded') ? 'Show less' : 'Read more...';
+            });
+            card.appendChild(expandBtn);
+            
+            // URL Link: only rendered if validated as safe http(s) URL
+            if (isValidHttpUrl(job.url)) {
+                const linkDiv = document.createElement('div');
+                linkDiv.style.marginTop = '0.5rem';
+                const link = document.createElement('a');
+                link.href = job.url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.style.fontSize = '0.875rem';
+                link.style.color = 'var(--primary)';
+                link.textContent = 'View Posting ↗';
+                linkDiv.appendChild(link);
+                card.appendChild(linkDiv);
+            }
+            
+            // Company Intel
+            if (intel && intel.length > 0) {
+                const intelSection = document.createElement('div');
+                intelSection.className = 'intel-section';
+                const intelHeading = document.createElement('strong');
+                intelHeading.textContent = 'Company Intel:';
+                intelSection.appendChild(intelHeading);
+                intelSection.appendChild(document.createElement('br'));
+                
+                intel.forEach(review => {
+                    const badge = document.createElement('span');
+                    const badgeClass = review.sentiment === 'positive' ? 'intel-positive'
+                        : review.sentiment === 'negative' ? 'intel-negative'
+                        : 'intel-neutral';
+                    badge.className = `intel-badge ${badgeClass}`;
+                    badge.textContent = `${review.source || 'Intel'}: ${review.summary || ''}`;
+                    intelSection.appendChild(badge);
+                });
+                card.appendChild(intelSection);
+            }
+            
             jobsList.appendChild(card);
         });
     }

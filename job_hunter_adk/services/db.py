@@ -8,7 +8,28 @@ DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, 'applications.db')
 
-engine = create_engine(f'sqlite:///{DB_PATH}', echo=False)
+def get_database_url() -> str:
+    """
+    Returns configured DATABASE_URL from environment if set, otherwise defaults
+    to the local SQLite applications database path.
+    Normalizes 'postgres://' prefixes to 'postgresql://' for SQLAlchemy compatibility.
+    """
+    url = os.environ.get("DATABASE_URL")
+    if url:
+        url = url.strip()
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
+    return f"sqlite:///{DB_PATH}"
+
+def get_engine(db_url: str | None = None):
+    """
+    Creates and returns a SQLAlchemy Engine for the given db_url (or get_database_url()).
+    """
+    url = db_url or get_database_url()
+    return create_engine(url, echo=False)
+
+engine = get_engine()
 Base = declarative_base()
 SessionLocal = sessionmaker(bind=engine)
 
@@ -25,9 +46,10 @@ class Application(Base):
 
 Base.metadata.create_all(engine)
 
-def record_application(job_listing: JobListing, status: str) -> None:
-    """Record a job application in the SQLite database."""
-    session = SessionLocal()
+def record_application(job_listing: JobListing, status: str, session_factory=None) -> None:
+    """Record a job application in the configured database."""
+    maker = session_factory or SessionLocal
+    session = maker()
     try:
         app = Application(
             job_id=str(job_listing.id),

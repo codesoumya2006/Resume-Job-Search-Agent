@@ -6,7 +6,7 @@ from .tools import (
     search_indeed, web_discovery, dedupe_merge
 )
 
-def get_job_discovery_agent():
+def get_job_discovery_agent() -> LlmAgent:
     return LlmAgent(
         name="job_discovery_agent",
         model=get_model(),
@@ -19,7 +19,7 @@ def get_job_discovery_agent():
             web_discovery,
             dedupe_merge
         ],
-        output_key="job_listings"
+        output_key="discovered_jobs"
     )
 
 job_discovery_agent = get_job_discovery_agent()

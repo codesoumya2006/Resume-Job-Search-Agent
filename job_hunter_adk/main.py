@@ -3,32 +3,29 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-try:
-    from google.adk.runner import Runner
-    from google.adk.services import SessionService
-except ImportError:
-    class Runner:
-        def __init__(self, agent, session_service):
-            self.agent = agent
-            self.session_service = session_service
-            
-        def run(self, message, state=None):
-            print(f"Runner received: {message}")
-            return {"response": "Mock runner response", "state": state}
-            
-    class SessionService:
-        pass
-
+import logging
+from google.adk.runners import Runner
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.genai import types
 from agent import root_agent
+
+logger = logging.getLogger(__name__)
 
 def main():
     print("Welcome to Job Hunter ADK! (Smoke test CLI)")
     print("Type 'exit' or 'quit' to stop.\n")
     
-    session_service = SessionService()
-    runner = Runner(agent=root_agent, session_service=session_service)
+    session_service = InMemorySessionService()
+    runner = Runner(
+        agent=root_agent,
+        session_service=session_service,
+        app_name="job_hunter_adk",
+        auto_create_session=True,
+    )
     
-    # Pre-populate state for smoke test
+    user_id = "cli-user"
+    session_id = "cli-session"
+
     initial_state = {
         "preferences": {
             "job_type": "full-time",
@@ -39,8 +36,12 @@ def main():
         "resume_raw": "Software Engineer with 5 years of Python experience."
     }
     
-    # In a real ADK Runner, state might be attached to the session service or passed in run().
-    # Here we mock it by attaching it to the runner or just assuming the agent fetches it.
+    session_service.create_session_sync(
+        app_name="job_hunter_adk",
+        user_id=user_id,
+        session_id=session_id,
+        state=initial_state,
+    )
     
     while True:
         try:
@@ -48,9 +49,14 @@ def main():
             if user_input.lower() in ["exit", "quit"]:
                 break
             
-            # Simulated run with initial state
-            response = runner.run(user_input, state=initial_state)
-            print(f"Agent: {response}")
+            msg = types.Content(role="user", parts=[types.Part.from_text(text=user_input)])
+            response_text = ""
+            for event in runner.run(user_id=user_id, session_id=session_id, new_message=msg):
+                if event.content and event.content.parts:
+                    for part in event.content.parts:
+                        if part.text:
+                            response_text += part.text
+            print(f"Agent: {response_text or 'Turn completed.'}")
             
         except KeyboardInterrupt:
             break

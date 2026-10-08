@@ -14,6 +14,7 @@ class ChatRequest(BaseModel):
     user: Optional[str] = None
     message: str
     state_updates: Optional[dict[str, Any]] = None
+    user_confirmed: Optional[bool] = None
 
 class ChatResponse(BaseModel):
     session_id: str
