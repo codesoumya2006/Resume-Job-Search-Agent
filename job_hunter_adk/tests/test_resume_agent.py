@@ -71,3 +71,12 @@ def test_ats_score():
     assert "score" in result
     assert "missing_keywords" in result
     assert "kubernetes" in result["missing_keywords"]
+
+def test_parse_resume_fails_transparently_without_fabrication():
+    class FailingModel:
+        def generate(self, prompt):
+            raise RuntimeError("LLM service unavailable")
+
+    with patch('sub_agents.resume_agent.tools.get_model', return_value=FailingModel()):
+        with pytest.raises(ValueError, match="Resume parsing failed"):
+            _parse_resume_impl("Corrupted resume text")

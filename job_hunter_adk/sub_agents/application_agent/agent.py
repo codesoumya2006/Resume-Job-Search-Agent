@@ -19,7 +19,7 @@ def create_application_agent() -> LlmAgent:
             record_application,
             send_email
         ],
-        output_key="application_results"
+        output_key="email_draft"
     )
 
 application_agent = create_application_agent()

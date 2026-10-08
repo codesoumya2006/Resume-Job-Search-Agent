@@ -1,6 +1,7 @@
 import logging
 import json
-from google.adk.tools import FunctionTool
+from google.adk.tools import FunctionTool, ToolContext
+
 from services.model_router import get_model
 from services.db import record_application as db_record_application
 from schemas.job_listing import JobListing
@@ -8,20 +9,50 @@ from schemas.resume_profile import ResumeProfile
 
 logger = logging.getLogger(__name__)
 
-def _draft_cover_letter_impl(job_listing: dict, resume_profile: dict) -> str:
+from services.security import SECURITY_PROMPT_HEADER, wrap_untrusted_data
+
+def _draft_cover_letter_impl(
+    job_listing: dict | None = None,
+    resume_profile: dict | None = None,
+    tool_context: ToolContext | None = None
+) -> str:
     """Draft a cover letter using LLM."""
-    job = JobListing.model_validate(job_listing)
-    resume = ResumeProfile.model_validate(resume_profile)
+    if tool_context is not None and hasattr(tool_context, "state"):
+        if job_listing is None:
+            job_listing = tool_context.state.get("selected_job")
+        if resume_profile is None:
+            resume_profile = tool_context.state.get("resume_profile")
+
+    if isinstance(job_listing, str):
+        try:
+            job_listing = json.loads(job_listing)
+        except Exception:
+            job_listing = {}
+
+    if isinstance(resume_profile, str):
+        try:
+            resume_profile = json.loads(resume_profile)
+        except Exception:
+            resume_profile = {}
+
+    job = JobListing.model_validate(job_listing or {})
+    resume = ResumeProfile.model_validate(resume_profile or {})
     model = get_model()
+    
+    wrapped_job = wrap_untrusted_data(job.model_dump_json(), data_type="job_listing")
+    wrapped_resume = wrap_untrusted_data(resume.model_dump_json(), data_type="resume_profile")
+    
     prompt = f"""
     You are an expert career coach. Draft a compelling cover letter for the following job using the candidate's resume profile.
     Keep it concise, professional, and highlight the most relevant skills. Do not include markdown blocks, just the text.
 
+    {SECURITY_PROMPT_HEADER}
+
     Job Listing:
-    {job.model_dump_json()}
+    {wrapped_job}
 
     Resume Profile:
-    {resume.model_dump_json()}
+    {wrapped_resume}
     """
     try:
         response = model.generate(prompt)
@@ -32,16 +63,38 @@ def _draft_cover_letter_impl(job_listing: dict, resume_profile: dict) -> str:
 
 draft_cover_letter = FunctionTool(func=_draft_cover_letter_impl)
 
-def _draft_email_impl(job_listing: dict, cover_letter: str, recruiter_contact: str | None = None) -> dict:
+def _draft_email_impl(
+    job_listing: dict | None = None,
+    cover_letter: str | None = None,
+    recruiter_contact: str | None = None,
+    tool_context: ToolContext | None = None
+) -> dict:
     """Returns a DRAFT email dict. Must never actually send anything."""
-    job = JobListing.model_validate(job_listing)
+    if tool_context is not None and hasattr(tool_context, "state"):
+        if job_listing is None:
+            job_listing = tool_context.state.get("selected_job")
+        if cover_letter is None:
+            cover_letter = "Dear Hiring Manager,\n\nI am interested in this position.\n\nSincerely,\nCandidate"
+
+    if isinstance(job_listing, str):
+        try:
+            job_listing = json.loads(job_listing)
+        except Exception:
+            job_listing = {}
+
+    job = JobListing.model_validate(job_listing or {})
     contact = recruiter_contact if recruiter_contact else "hr@company.com"
-    return {
+    draft = {
         "to": contact,
         "subject": f"Application for {job.title} at {job.company}",
-        "body": cover_letter,
+        "body": cover_letter or "",
         "status": "pending_user_approval"
     }
+
+    if tool_context is not None and hasattr(tool_context, "state"):
+        tool_context.state["email_draft"] = draft
+
+    return draft
 
 draft_email = FunctionTool(func=_draft_email_impl)
 
@@ -56,7 +109,7 @@ def _record_application_impl(job_listing: dict, status: str) -> None:
 
 record_application = FunctionTool(func=_record_application_impl)
 
-def _send_email_impl(draft: dict, user_confirmed: bool) -> dict:
+def _send_email_impl(draft: dict, user_confirmed: bool = False) -> dict:
     """Only actually sends if user_confirmed is True."""
     if not user_confirmed:
         return {"status": "not_sent", "reason": "awaiting confirmation"}

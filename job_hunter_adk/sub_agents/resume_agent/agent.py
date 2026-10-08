@@ -3,7 +3,7 @@ from services.model_router import get_model
 from .prompt import RESUME_AGENT_INSTRUCTION
 from .tools import parse_resume, ats_score, skill_gap
 
-def get_resume_agent():
+def get_resume_agent() -> LlmAgent:
     return LlmAgent(
         name="resume_agent",
         model=get_model(),

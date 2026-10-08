@@ -19,7 +19,7 @@ def create_interview_agent() -> LlmAgent:
             mock_interview_turn,
             feedback
         ],
-        output_key="interview_results"
+        output_key="interview_prep"
     )
 
 interview_agent = create_interview_agent()

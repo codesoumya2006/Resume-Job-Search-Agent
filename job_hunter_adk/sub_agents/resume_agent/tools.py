@@ -1,15 +1,13 @@
 import json
+import logging
 import re
 from schemas.resume_profile import ResumeProfile
 from schemas.preferences import Preferences
 from services.model_router import get_model
 
-try:
-    from google.adk.tools import FunctionTool
-except ImportError:
-    class FunctionTool:
-        def __init__(self, func):
-            self.func = func
+logger = logging.getLogger(__name__)
+
+from google.adk.tools import FunctionTool
 
 def _parse_resume_impl(resume_text: str) -> ResumeProfile:
     """
@@ -20,14 +18,18 @@ def _parse_resume_impl(resume_text: str) -> ResumeProfile:
     # In production, this would call the get_model() API.
     # We will try to call the model via a simple agent structure if possible, but fallback to a robust parser.
     model = get_model()
+    from services.security import SECURITY_PROMPT_HEADER, wrap_untrusted_data
+    wrapped_resume = wrap_untrusted_data(resume_text, data_type="resume_text")
     prompt = f"""
     You are a strict data extraction assistant.
     Extract the candidate's skills, experience, internships, certifications, education, and projects from the provided resume text.
     Return ONLY valid JSON matching this schema:
     {ResumeProfile.model_json_schema()}
     
+    {SECURITY_PROMPT_HEADER}
+    
     Resume Text:
-    {resume_text}
+    {wrapped_resume}
     """
     
     try:
@@ -42,15 +44,8 @@ def _parse_resume_impl(resume_text: str) -> ResumeProfile:
         
         return ResumeProfile.model_validate_json(text)
     except Exception as e:
-        # Fallback for testing when model calls fail or aren't authenticated
-        return ResumeProfile(
-            skills=["Python", "Machine Learning"],
-            experience=[],
-            internships=[],
-            certifications=[],
-            education=[],
-            projects=[]
-        )
+        logger.error(f"Failed to parse resume into structured profile: {e}")
+        raise ValueError(f"Resume parsing failed: unable to extract candidate profile ({e})") from e
 
 parse_resume = FunctionTool(func=_parse_resume_impl)
 

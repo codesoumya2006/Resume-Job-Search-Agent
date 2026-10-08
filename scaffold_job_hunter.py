@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-base_dir = Path(r"c:\Users\soumy\OneDrive\Desktop\Resume_Agent\job_hunter_adk")
+base_dir = Path(r"c:\Users\soumy\OneDrive\Desktop\r_agent\Resume-Job-Search-Agent\job_hunter_adk")
 
 files = [
     "README.md",

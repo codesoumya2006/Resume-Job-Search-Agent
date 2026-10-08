@@ -10,7 +10,7 @@ from .tools import (
     summarize_sentiment
 )
 
-def get_company_intel_agent():
+def get_company_intel_agent() -> LlmAgent:
     return LlmAgent(
         name="company_intel_agent",
         model=get_model(),
